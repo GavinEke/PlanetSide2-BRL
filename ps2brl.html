@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>PlanetSide 2 Battle Rank Logger</title>
+<style>
+*, *:before, *:after {
+  -moz-box-sizing: border-box;
+  -webkit-box-sizing: border-box;
+  box-sizing: border-box;
+}
+html {
+  font-family: Helvetica, Arial, sans-serif;
+  font-size: 100%;
+  background: #333;
+}
+#page-wrapper {
+  width: 800px;
+  background: #FFF;
+  padding: 1em;
+  margin: 1em auto;
+  border-top: 5px solid #69c773;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.8);
+}
+h1 {
+	margin-top: 0;
+}
+#status {
+  font-size: 0.9rem;
+  margin-bottom: 1rem;
+}
+.open {
+  color: green;
+}
+.closed {
+  color: red;
+}
+ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 0.95rem;
+}
+ul li {
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid #EEE;
+}
+ul li:first-child {
+  border-top: 1px solid #EEE;
+}
+ul li span {
+  display: inline-block;
+  width: 90px;
+  font-weight: bold;
+  color: #999;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+.sent {
+  background-color: #F7F7F7;
+}
+.received {}
+#message-form {
+  margin-top: 1.5rem;
+}
+textarea {
+  width: 100%;
+  padding: 0.5rem;
+  font-size: 1rem;
+  border: 1px solid #D9D9D9;
+  border-radius: 3px;
+  box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.1);
+  min-height: 100px;
+  margin-bottom: 1rem;
+}
+button {
+  display: inline-block;
+  border-radius: 3px;
+  border: none;
+  font-size: 0.9rem;
+  padding: 0.6rem 1em;
+  color: white;
+  margin: 0 0.25rem;
+  text-align: center;
+  background: #BABABA;
+  border-bottom: 1px solid #999;
+}
+button[type="submit"] {
+  background: #86b32d;
+  border-bottom: 1px solid #5d7d1f;
+}
+button:hover {
+  opacity: 0.75;
+  cursor: pointer;
+}
+</style>
+</head>
+<body>
+<div id="page-wrapper">
+  <h1>PlanetSide 2 Battle Rank Logger</h1>
+  
+  <div id="status">Connecting...</div>
+  
+  <div id="motd">Wait until the above message says connected then click Start Service</div>
+  
+  <form id="message-form" action="#" method="post">
+    <button type="submit" id="stream">Start Service</button>
+    <button type="button" id="close">Close Connection</button>
+  </form>
+  
+  <h3>Log</h3>
+  <ul id="messages"></ul>
+  <br />
+  
+</div>
+<script>
+var getJSON = function(url) {
+  return new Promise(function(resolve, reject) {
+    var xhr = new XMLHttpRequest();
+    xhr.open('get', url, true);
+    xhr.responseType = 'json';
+    xhr.onload = function() {
+      var status = xhr.status;
+      if (status == 200) {
+        resolve(xhr.response);
+      } else {
+        reject(status);
+      }
+    };
+    xhr.send();
+  });
+};
+window.onload = function() {
+  // Get references to elements on the page.
+  var form = document.getElementById('message-form');
+  var messagesList = document.getElementById('messages');
+  var socketStatus = document.getElementById('status');
+  var socketMOTD = document.getElementById('motd');
+  var streamBtn = document.getElementById('stream');
+  var closeBtn = document.getElementById('close');
+  var censusCharacterId = "";
+  var characterName = "";
+  var world_id = {1: "Connery", 10: "Miller", 13: "Cobalt", 17: "Emerald", 19: "Jaeger", 25: "Briggs"};
+  // Create a new WebSocket.
+  var socket = new WebSocket('wss://push.planetside2.com/streaming?environment=ps2&service-id=s:example');
+  // Handle any errors that occur.
+  socket.onerror = function(error) {
+    console.log('WebSocket Error: ' + error);
+  };
+  // Show a connected message when the WebSocket is opened.
+  socket.onopen = function(event) {
+    socketStatus.innerHTML = 'Connected to: wss://push.planetside2.com/streaming?environment=ps2&service-id=s:example';
+    socketStatus.className = 'open';
+  };
+  // Handle messages sent by the server.
+  socket.onmessage = function(event) {
+    var message = event.data;
+    	// console.log (message);
+    	var obj = JSON.parse(event.data);
+    	if (obj.type === 'serviceMessage') {
+	    	if (obj.payload.battle_rank > 100) {
+	    		censusCharacterId = 'https://census.daybreakgames.com/get/ps2:v2/character/?character_id=' + obj.payload.character_id;
+	    		getJSON(censusCharacterId).then(function(data) {
+	    			characterName = data.character_list[0].name.first;
+	    			messagesList.innerHTML += '<li class="received"><span>' + world_id[obj.payload.world_id] + ':</span>' + characterName + ' reached BR' + obj.payload.battle_rank + '</li>'
+	    		}, function(status) { //error detection....
+	    			window.alert('Something went wrong.');
+	    		});
+	    	};
+    	};
+  };
+  // Show a disconnected message when the WebSocket is closed.
+  socket.onclose = function(event) {
+    socketStatus.innerHTML = 'Disconnected from WebSocket.';
+    socketStatus.className = 'closed';
+  };
+  // Send a message when the form is submitted.
+  form.onsubmit = function(e) {
+    e.preventDefault();
+    // Retrieve the message from the textarea.
+    var message = '{"service":"event","action":"subscribe","characters":["all"],"worlds":["all"],"eventNames":["BattleRankUp"]}';
+    // Send the message through the WebSocket.
+    socket.send(message);
+    // Add the message to the messages list.
+    console.log(message);
+    socketMOTD.innerHTML = 'Service Started. Anyone who gets a battle rank over 100 will appear in the log below.';
+    return false;
+  };
+  // Close the WebSocket connection when the close button is clicked.
+  closeBtn.onclick = function(e) {
+    e.preventDefault();
+    
+    socketMOTD.innerHTML = 'Connection closed. Please refresh the page to reconnect.';
+    streamBtn.disabled = true; 
+    // Close the WebSocket.
+    socket.close();
+    return false;
+  };
+};
+</script>
+</body>
+</html>
