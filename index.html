@@ -158,7 +158,7 @@ window.onload = function() {
     	// console.log (message);
     	var obj = JSON.parse(event.data);
     	if (obj.type === 'serviceMessage') {
-	    	if (obj.payload.battle_rank > 100) {
+	    	if (obj.payload.battle_rank > 15) {
 	    		censusCharacterId = 'https://census.daybreakgames.com/get/ps2:v2/character/?character_id=' + obj.payload.character_id;
 	    		getJSON(censusCharacterId).then(function(data) {
 	    			characterName = data.character_list[0].name.first;
